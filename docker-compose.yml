@@ -1,0 +1,66 @@
+version: "3.9"
+services:
+  db:
+    image: postgres:14
+    environment:
+      POSTGRES_PASSWORD: todo_pass
+      POSTGRES_USER: todo_user
+      POSTGRES_DB: tododb
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      - ./todo-app/db/init.sql:/docker-entrypoint-initdb.d/init.sql
+    restart: always # Ensures container restarts on failure or reboot
+    ports:
+      - "5433:5432"
+    networks:
+      - todo_network
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "todo_user", "-d", "tododb"]
+      interval: 10s
+      retries: 5
+      start_period: 10s
+      timeout: 5s
+
+  backend:
+    build: ./todo-app/backend
+    ports:
+      - "5000:5000"
+    environment:
+      - DATABASE_HOST=db
+      - DB_USER=todo_user
+      - DB_PASS=todo_pass
+      - DB_NAME=tododb
+    depends_on:
+      - db
+    restart: always # Ensures container restarts on failure or reboot
+    networks:
+      - todo_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      retries: 5
+      start_period: 10s
+      timeout: 5s
+
+  frontend:
+    build: ./todo-app/frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    networks:
+      - todo_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/"]
+      interval: 30s
+      retries: 5
+      start_period: 10s
+      timeout: 5s
+
+volumes:
+  db_data:
+
+networks:
+  todo_network:
+    driver: bridge
+
